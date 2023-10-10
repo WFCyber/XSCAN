@@ -1,49 +1,36 @@
-import argparse
-import scapy.all as scapy
+import json
+import datetime
 
-def scan_port(target, port):
-    # 创建IP和TCP包
-    ip_packet = scapy.IP(dst=target)
-    tcp_packet = scapy.TCP(dport=port)
+import nmap
 
-    # 合并IP和TCP包
-    packet = ip_packet / tcp_packet
 
-    # 发送并等待响应
-    response = scapy.sr1(packet, timeout=1, verbose=False)
+def nmap_portscan(host, ports):  # 端口扫描
+    nm = nmap.PortScanner()
+    nm.scan('120.55.12.41', '22-1000')
+    for host in nm.all_hosts():
+        print('----------------------------------------------------')
+    print('Host : %s (%s)' % (host, nm[host].hostname()))
+    print('State : %s' % nm[host].state())
+    for proto in nm[host].all_protocols():
+        print('----------')
+    print('Protocol : %s' % proto)
+    lport = nm[host][proto].keys()
+    sorted(lport)
+    for port in lport:
+        print('port : %s\tstate : %s' % (port, nm[host][proto][port]['state']))
 
-    # 判断响应是否为空，以及响应中是否包含TCP flags
-    if response is not None and response.haslayer(scapy.TCP):
-        if response.getlayer(scapy.TCP).flags == 0x12:  # 0x12表示SYN/ACK标志
-            return True
-        elif response.getlayer(scapy.TCP).flags == 0x14:  # 0x14表示RST标志
-            return False
-    return None
 
-def scan_ports(target, ports):
-    open_ports = []
-    for port in ports:
-        result = scan_port(target, port)
-        if result is not None:
-            if result:
-                open_ports.append(port)
-    return open_ports
+def nmap_cli(host, port, args):  # 自定义命令行操作nmap
+    current_time = datetime.datetime.now()  # 获取当前时间
+    filename = current_time.strftime(f"{host}_%Y-%m-%d-%H-%M-%S")
+    nm = nmap.PortScanner()
+    rs = nm.scan(host, port, args)
+    rs_json = json.dumps(rs,indent=4,separators=(',', ':'))
+    with open(f'./target/namp/{filename}.json','w') as f:  # 扫描结果按照json保存在文件
+        json.dump(rs, f,indent=4,separators=(',', ':'))
+    print(rs_json)
+    print(f'文件保存在./target/namp/{filename}.json')
 
-def main():
-    parser = argparse.ArgumentParser(description="Simple Port Scanner using Scapy")
-    parser.add_argument("target", help="Target host or IP address")
-    parser.add_argument("-p", "--ports", type=str, help="Ports to scan (e.g., 80,443,8080)")
-    args = parser.parse_args()
 
-    target = args.target
-    ports = args.ports.split(",") if args.ports else range(1, 1025)  # 默认扫描常见的端口范围
-
-    open_ports = scan_ports(target, ports)
-
-    if open_ports:
-        print(f"Open ports on {target}: {', '.join(map(str, open_ports))}")
-    else:
-        print("No open ports found.")
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    nmap_cli('120.55.12.41','22-1000','-O')
